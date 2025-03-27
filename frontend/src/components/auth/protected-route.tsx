@@ -14,14 +14,12 @@ export function ProtectedRoute({ children, requireVerified = true }: ProtectedRo
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
 
   useEffect(() => {
-    // Add a small delay to avoid flash of loading state
     const timer = setTimeout(() => {
       setIsCheckingAuth(false);
     }, 500);
 
     return () => clearTimeout(timer);
   }, []);
-  // Still loading
   if (isPending || isCheckingAuth) {
     return (
       <div className="flex h-screen w-full items-center justify-center">
@@ -29,12 +27,9 @@ export function ProtectedRoute({ children, requireVerified = true }: ProtectedRo
       </div>
     );
   }
-
-  // Not authenticated at all
   if (!user) {
     return <Navigate to="/auth/login" state={{ from: location }} replace />;
   }
-  // Authenticated but not verified when verification is required
   if (requireVerified && !user.isVerified) {
     return <Navigate to="/auth/verify-required" state={{ email: user.email }} replace />;
   }

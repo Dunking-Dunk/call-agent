@@ -6,6 +6,11 @@ import { config } from './config';
 import { errorHandler } from './middleware/errorHandler';
 import healthRoutes from './routes/healthRoutes';
 import authRoutes from './routes/authRoutes';
+import sessionsRoutes from './routes/sessions';
+import callersRoutes from './routes/callers';
+import locationsRoutes from './routes/locations';
+import respondersRoutes from './routes/responders';
+import dispatchesRoutes from './routes/dispatches';
 import dotenv from 'dotenv';
 
 // Load environment variables
@@ -31,6 +36,11 @@ app.get('/', (req, res) => {
 // API routes
 app.use('/api/health', healthRoutes);
 app.use('/api/auth', authRoutes);
+app.use('/api/sessions', sessionsRoutes);
+app.use('/api/callers', callersRoutes);
+app.use('/api/locations', locationsRoutes);
+app.use('/api/responders', respondersRoutes);
+app.use('/api/dispatches', dispatchesRoutes);
 
 // Error handling middleware
 app.use(errorHandler);

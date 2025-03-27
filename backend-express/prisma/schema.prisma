@@ -34,3 +34,138 @@ model VerificationToken {
     userId    Int
     user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
+
+model Session {
+  id        String        @id @default(uuid())
+  startTime DateTime      @default(now())
+  endTime   DateTime?
+  status    SessionStatus @default(ACTIVE)
+
+  phoneNumber String?
+  callerId    String?
+  caller      Caller? @relation(fields: [callerId], references: [id])
+
+  emergencyType EmergencyType?
+  locationId    String?
+  location      Location?      @relation(fields: [locationId], references: [id])
+  description   String?
+  priorityLevel Int?           @default(3) // 1-5, where 1 is highest priority
+
+  transcriptEntries SessionTranscript[]
+  dispatches        Dispatch[]
+
+  responseNotes String?  @db.Text
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model SessionTranscript {
+  id          String      @id @default(uuid())
+  sessionId   String
+  session     Session     @relation(fields: [sessionId], references: [id])
+  timestamp   DateTime    @default(now())
+  speakerType SpeakerType
+  content     String      @db.Text
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+}
+
+model Caller {
+  id          String    @id @default(uuid())
+  phoneNumber String?   @unique
+  name        String?
+  language    String?   @default("Tamil") 
+  sessions    Session[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model Location {
+  id             String      @id @default(uuid())
+  address        String?
+  landmark       String?
+  gpsCoordinates String?
+  city           String?
+  district       String?
+  sessions       Session[]
+  responders     Responder[]
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+}
+
+model Responder {
+  id            String          @id @default(uuid())
+  responderType ResponderType
+  identifier    String // Vehicle number or badge ID
+  status        ResponderStatus @default(AVAILABLE)
+  locationId    String?
+  location      Location?       @relation(fields: [locationId], references: [id])
+  dispatches    Dispatch[]
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+}
+
+model Dispatch {
+  id           String         @id @default(uuid())
+  sessionId    String
+  session      Session        @relation(fields: [sessionId], references: [id])
+  responderId  String
+  responder    Responder      @relation(fields: [responderId], references: [id])
+  dispatchTime DateTime       @default(now())
+  arrivalTime  DateTime?
+  status       DispatchStatus @default(DISPATCHED)
+  notes        String?        @db.Text
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  @@unique([sessionId, responderId])
+}
+
+// Enums
+enum SessionStatus {
+  ACTIVE
+  EMERGENCY_VERIFIED
+  DISPATCHED
+  COMPLETED
+  DROPPED
+  TRANSFERRED
+  NON_EMERGENCY
+}
+
+enum EmergencyType {
+  MEDICAL
+  POLICE
+  FIRE
+  OTHER
+}
+
+enum ResponderType {
+  AMBULANCE
+  POLICE
+  FIRE
+  OTHER
+}
+
+enum ResponderStatus {
+  AVAILABLE
+  DISPATCHED
+  ON_ROUTE
+  ON_SCENE
+  RETURNING
+  OUT_OF_SERVICE
+}
+
+enum DispatchStatus {
+  DISPATCHED
+  EN_ROUTE
+  ARRIVED
+  COMPLETED
+  CANCELLED
+}
+
+// Speaker types for transcript entries
+enum SpeakerType {
+  AGENT
+  CALLER
+  SYSTEM
+}

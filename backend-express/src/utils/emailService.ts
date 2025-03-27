@@ -3,7 +3,6 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-// Create a transporter for sending emails
 const transporter = nodemailer.createTransport({
     host: process.env.EMAIL_HOST,
     port: parseInt(process.env.EMAIL_PORT || '587'),
@@ -18,7 +17,7 @@ export const sendVerificationEmail = async (
     email: string,
     verificationToken: string
 ): Promise<void> => {
-    const verificationUrl = `http://localhost:4000/api/auth/verify/${verificationToken}`;
+    const verificationUrl = `http://localhost:${process.env.PORT}/api/auth/verify/${verificationToken}`;
 
     const mailOptions = {
         from: process.env.EMAIL_FROM,

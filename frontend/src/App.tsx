@@ -15,10 +15,8 @@ function App() {
   return (
     <MainLayout>
       <Routes>
-        {/* Public routes */}
         <Route path="/landing" element={<Landing />} />
         
-        {/* Auth routes (only accessible if NOT logged in) */}
         <Route path="/auth" element={<AuthLayout />}>
           <Route path="login" element={
             <PublicOnlyRoute>

@@ -3,18 +3,17 @@ import { useMutationData } from "@/hooks/useMutationData";
 import axios from "axios";
 import { LoginRequest, PasswordResetRequest, RegisterRequest, ResendVerificationRequest, ResetPasswordRequest } from "@/types/index.types";
 
-const API_URL = 'http://localhost:4000/api';
+const API_URL = 'http://localhost:4001/api';
 
 // Create axios instance with default config
-const api = axios.create({
+export const api = axios.create({
   baseURL: API_URL,
   headers: {
     'Content-Type': 'application/json',
   },
-  withCredentials: true, // This enables sending cookies with requests
+  withCredentials: true, 
 });
 
-// Add interceptor to include auth token in requests (for backward compatibility)
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('authToken');
   if (token) {
