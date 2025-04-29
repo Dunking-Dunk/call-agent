@@ -61,8 +61,8 @@ export function SessionList() {
 
   if (isPending) {
     return (
-      <div className="space-y-4">
-        <Skeleton className="h-8 w-[200px]" />
+      <div className="container mx-auto space-y-4">
+        <Skeleton className="h-20 w-full" />
         <Skeleton className="h-[400px] w-full" />
       </div>
     );

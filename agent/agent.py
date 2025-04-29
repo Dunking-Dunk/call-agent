@@ -13,6 +13,7 @@ from livekit.agents import (
     llm,
     metrics,
 )
+from livekit import api
 from livekit.agents.pipeline import VoicePipelineAgent
 from livekit.plugins import deepgram, silero, turn_detector, google
 from tools import (
@@ -44,7 +45,6 @@ async def initialize_session():
             session_id = result["session_id"]
             logger.info(f"Created initial session with ID: {session_id}")
             
-            # Add a system message to mark the start of the session
             system_message = f"Emergency session initialized at {datetime.now().isoformat()}"
             await store_session_transcript(
                 session_id=session_id,
@@ -66,6 +66,31 @@ def prewarm(proc: JobProcess):
 
 
 async def entrypoint(ctx: JobContext):
+    # Set up recording
+    req = api.RoomCompositeEgressRequest(
+        room_name=ctx.room.name,
+        layout="speaker",
+        preset=api.EncodingOptionsPreset.H264_720P_30,
+        audio_only=False,
+        segment_outputs=[api.SegmentedFileOutput(
+            filename_prefix=f"emergency-{datetime.now().strftime('%Y%m%d-%H%M%S')}",
+            playlist_name="playlist.m3u8",
+            live_playlist_name="live-playlist.m3u8",
+            segment_duration=5,
+            gcp=api.GCPUpload(
+                credentials=open("./scenic-shift-437715-m8-9058a9392575.json").read(), 
+                bucket="dispatch-agent",  
+            ),
+        )],
+    )
+    
+    lkapi = api.LiveKitAPI()
+    try:
+        res = await lkapi.egress.start_room_composite_egress(req)
+        print("Started room recording with egress ID: ", res.egress_id)
+        logger.info(f"Started room recording with egress ID: {res.egress_id}")
+    except Exception as e:
+        logger.error(f"Failed to start room recording: {str(e)}")
     
     initial_ctx = llm.ChatContext().append(
         role="system",
@@ -78,7 +103,6 @@ async def entrypoint(ctx: JobContext):
     participant = await ctx.wait_for_participant()
     logger.info(f"starting voice assistant for participant {participant.identity}")
     
-    # Initialize a session as soon as the participant joins
     current_session_id = await initialize_session()
     logger.info(f"Initialized session for participant {participant.identity}: {current_session_id}")
     
@@ -129,7 +153,6 @@ async def entrypoint(ctx: JobContext):
             """Called to create or update an emergency session with all relevant details. Use this when you've gathered enough information about an emergency."""
             nonlocal current_session_id
             
-            # If we have a current session, update it
             if current_session_id:
                 logger.info(f"Session already exists ({current_session_id}), updating with new information")
                 result = await create_or_update_session(
@@ -150,7 +173,6 @@ async def entrypoint(ctx: JobContext):
                 )
                 
                 if result and result.get("success"):
-                    # Add system message about enhancing the session with details
                     system_message = f"Enhanced session with additional details at {datetime.now().isoformat()}"
                     asyncio.create_task(
                         store_session_transcript(
@@ -161,7 +183,6 @@ async def entrypoint(ctx: JobContext):
                     )
                     return result
                 else:
-                    # If update failed, try to create a new session
                     logger.warning(f"Failed to update session {current_session_id}, creating new one")
                     current_session_id = None
             
@@ -217,12 +238,10 @@ async def entrypoint(ctx: JobContext):
             """Called to dispatch or update a responder for the emergency. Use after creating an emergency session."""
             nonlocal current_session_id
             
-            # If session_id not provided, use the current session
             if not session_id and current_session_id:
                 session_id = current_session_id
                 logger.info(f"Using current session ID: {session_id} for dispatch")
             
-            # Convert arrival_time string to datetime if provided
             arrival_datetime = None
             if arrival_time:
                 try:
@@ -241,7 +260,6 @@ async def entrypoint(ctx: JobContext):
             )
             return result
 
-    # Create the function context instance
     fnc_ctx = EmergencyResponseFnc()
 
     agent = VoicePipelineAgent(
@@ -262,27 +280,24 @@ async def entrypoint(ctx: JobContext):
     def on_metrics_collected(agent_metrics: metrics.AgentMetrics):
         metrics.log_metrics(agent_metrics)
         usage_collector.collect(agent_metrics)
+        print("printed message: ",agent_metrics)
 
-    # Event listener for when user speech is committed
     @agent.on("user_speech_committed")
     def on_user_speech_committed(msg=None):
         try:
             nonlocal current_session_id
             
-            # If we don't have a session ID yet, we can't store transcripts
             if not current_session_id:
                 logger.info("No active session ID, skipping transcript storage")
                 return
                 
-            # Skip if no message is provided
             if msg is None:
                 logger.info("No message provided in user_speech_committed event, skipping transcript storage")
                 return
                 
-            # Get the content directly - it's already a string for user messages
             content = msg.content if hasattr(msg, 'content') else str(msg)
                 
-            # Store the message in the database
+            # Create a task for the async operation
             asyncio.create_task(
                 store_session_transcript(
                     session_id=current_session_id,
@@ -294,27 +309,21 @@ async def entrypoint(ctx: JobContext):
         except Exception as e:
             logger.error(f"Error processing user_speech_committed event: {str(e)}")
     
-    # Event listener for when agent stops speaking
     @agent.on("agent_stopped_speaking") 
     def on_agent_stopped_speaking(msg=None):
         try:
             nonlocal current_session_id
             
-            # If we don't have a session ID yet, we can't store transcripts
             if not current_session_id:
                 logger.info("No active session ID, skipping transcript storage")
                 return
                 
-            # For agent_stopped_speaking, sometimes there's no message
-            # In that case, we don't need to store anything
             if msg is None:
                 logger.info("No message provided in agent_stopped_speaking event, skipping transcript storage")
                 return
                 
-            # Get the agent's response content
             content = msg.content if hasattr(msg, 'content') else str(msg)
                 
-            # Store the message in the database
             asyncio.create_task(
                 store_session_transcript(
                     session_id=current_session_id,
@@ -328,8 +337,28 @@ async def entrypoint(ctx: JobContext):
 
     agent.start(ctx.room, participant)
 
-    # The agent should be polite and greet the user when it joins :)
-    await agent.say("Hello, what is your emergency? I'm ready to help you.", allow_interruptions=True)
+    try:
+        await agent.say("Hello, what is your emergency? I'm ready to help you.", allow_interruptions=True)
+        
+        # Wait for the agent to complete
+        await agent.wait_for_completion()
+        
+        # Ensure all pending operations are completed
+        pending = asyncio.all_tasks()
+        if pending:
+            logger.info(f"Waiting for {len(pending)} pending tasks to complete...")
+            await asyncio.gather(*pending)
+            
+        logger.info("Agent completed successfully")
+    except Exception as e:
+        logger.error(f"Error during agent execution: {str(e)}")
+        raise
+    finally:
+        # Clean up database connection
+        from utils import close_prisma_client
+        await close_prisma_client()
+        # Close LiveKit API connection
+        await lkapi.aclose()
 
 
 if __name__ == "__main__":

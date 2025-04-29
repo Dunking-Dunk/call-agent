@@ -58,7 +58,7 @@ export function SessionDetail() {
     toast.success("Transcript entry added successfully");
     setTranscriptContent("");
   });
-  console.log(session)
+  
   if (!session && isPending) {
     return (
       <div className="flex items-center justify-center h-[50vh]">

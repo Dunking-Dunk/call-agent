@@ -235,7 +235,11 @@ async def store_session_transcript(session_id: str, speaker_type: str, content: 
         The created transcript entry
     """
     try:
-        session_transcript_data = SessionTranscriptInput(session_id, speaker_type, content)
+        session_transcript_data = SessionTranscriptInput(
+            sessionId=session_id,
+            speakerType=speaker_type,
+            content=content
+        )
         result = await create_session_transcript(session_transcript_data)
         logger.info(f"Created transcript entry for session {session_id}")
         return result
